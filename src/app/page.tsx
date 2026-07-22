@@ -7,26 +7,16 @@ const DATA_REF = '2026-07-22'
 
 type DashboardData = {
   resumo: {
-    faturamento_bruto: number
-    total_entradas: number
-    divergencia_detectada: boolean
-    valor_divergencia: number
-    excesso_cobrado_total: number
-    cmv_estimado_pct: number
-    prejuizo_taxas: number
-    qtd_alertas: number
+    faturamento_bruto: number; total_entradas: number; divergencia_detectada: boolean
+    valor_divergencia: number; excesso_cobrado_total: number; cmv_estimado_pct: number
+    prejuizo_taxas: number; qtd_alertas: number
   } | null
   divergencias: Array<{ forma_pagamento: string; taxa_contratada_pct: number; taxa_efetiva_pct: number; prejuizo_financeiro: number }>
   formas: Array<{ forma_pagamento: string; faturamento_pdv: number; entrada_extrato: number; taxa_contratual_pct: number; taxa_efetiva_pct: number; excesso_prejuizo: number }>
 }
 
-function fmt(n: number): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n)
-}
-
-function pct(n: number): string {
-  return `${n.toFixed(2)}%`
-}
+function fmt(n: number): string { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n) }
+function pct(n: number): string { return `${n.toFixed(2)}%` }
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
@@ -35,28 +25,42 @@ export default function DashboardPage() {
   const [alerta, setAlerta] = useState('')
   const [analise, setAnalise] = useState('')
   const [difyLoading, setDifyLoading] = useState(false)
+  const [promo, setPromo] = useState('')
+  const [promoLoading, setPromoLoading] = useState(false)
 
   useEffect(() => {
     fetch(`/api/conciliacao?merchant_id=${MERCHANT_ID}&data_ref=${DATA_REF}`)
-      .then(r => r.json())
-      .then(d => { setData(d); setLoading(false) })
+      .then(r => r.json()).then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
 
   async function gerarInsights() {
-    setDifyLoading(true)
-    setInsight(''); setAlerta(''); setAnalise('')
+    setDifyLoading(true); setInsight(''); setAlerta(''); setAnalise('')
     try {
       const [i, a, m] = await Promise.all([
         fetch('/api/dify/insight', { method: 'POST', body: JSON.stringify({ merchant_id: MERCHANT_ID, data_ref: DATA_REF }), headers: { 'Content-Type': 'application/json' } }).then(r => r.json()),
         fetch('/api/dify/alerta', { method: 'POST', body: JSON.stringify({ merchant_id: MERCHANT_ID }), headers: { 'Content-Type': 'application/json' } }).then(r => r.json()),
         fetch('/api/dify/margem', { method: 'POST', body: JSON.stringify({ merchant_id: MERCHANT_ID, data_ref: DATA_REF }), headers: { 'Content-Type': 'application/json' } }).then(r => r.json()),
       ])
-      setInsight(i.result || i.error || '')
-      setAlerta(a.result || a.error || '')
-      setAnalise(m.result || m.error || '')
+      setInsight(i.result || i.error || ''); setAlerta(a.result || a.error || ''); setAnalise(m.result || m.error || '')
     } catch { setInsight('Erro ao gerar insights') }
     setDifyLoading(false)
+  }
+
+  async function gerarPromocao() {
+    setPromoLoading(true); setPromo('')
+    try {
+      const dias = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']
+      const climas = ['calor','frio','ameno','chuvoso','nublado']
+      const dia = dias[new Date().getDay()]
+      const clima = climas[Math.floor(Math.random() * climas.length)]
+      const res = await fetch('/api/dify/promo', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merchant_id: MERCHANT_ID, previsao_tempo: clima, dia_semana: dia }),
+      }).then(r => r.json())
+      setPromo(res.result || res.error || 'Erro')
+    } catch { setPromo('Erro ao gerar promoção') }
+    setPromoLoading(false)
   }
 
   const r = data?.resumo
@@ -69,12 +73,20 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-bold text-gray-900">FinanceSaaS</h1>
             <p className="text-sm text-gray-500">Dashboard de Conciliação Financeira — {DATA_REF}</p>
           </div>
-          <button onClick={gerarInsights} disabled={difyLoading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium flex items-center gap-2">
-            {difyLoading ? (
-              <><span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span> Gerando...</>
-            ) : 'Gerar Insights IA'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={gerarPromocao} disabled={promoLoading}
+              className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 text-sm font-medium flex items-center gap-2">
+              {promoLoading ? (
+                <><span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span> Gerando...</>
+              ) : '⚡ Gerar Promoção do Dia'}
+            </button>
+            <button onClick={gerarInsights} disabled={difyLoading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium flex items-center gap-2">
+              {difyLoading ? (
+                <><span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span> Gerando...</>
+              ) : 'Gerar Insights IA'}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -85,7 +97,6 @@ export default function DashboardPage() {
           <p className="text-red-500">Nenhum dado de conciliação encontrado.</p>
         ) : (
           <>
-            {/* Metric Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               <MetricCard title="Faturamento Bruto" value={fmt(r.faturamento_bruto)} color="blue" />
               <MetricCard title="Entradas no Banco" value={fmt(r.total_entradas)} color="green" />
@@ -93,7 +104,6 @@ export default function DashboardPage() {
               <MetricCard title="CMV Estimado" value={pct(r.cmv_estimado_pct || 0)} color="orange" />
             </div>
 
-            {/* Tables */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
               <Card title="Conciliação por Forma de Pagamento">
                 <table className="w-full text-sm">
@@ -114,12 +124,8 @@ export default function DashboardPage() {
                         <td className="py-2 text-right">{fmt(f.faturamento_pdv)}</td>
                         <td className="py-2 text-right">{fmt(f.entrada_extrato)}</td>
                         <td className="py-2 text-right">{pct(f.taxa_contratual_pct)}</td>
-                        <td className={`py-2 text-right ${f.taxa_efetiva_pct > f.taxa_contratual_pct ? 'text-red-600' : 'text-green-600'}`}>
-                          {pct(f.taxa_efetiva_pct)}
-                        </td>
-                        <td className={`py-2 text-right ${f.excesso_prejuizo > 0 ? 'text-red-600 font-bold' : ''}`}>
-                          {f.excesso_prejuizo > 0 ? fmt(f.excesso_prejuizo) : '-'}
-                        </td>
+                        <td className={`py-2 text-right ${f.taxa_efetiva_pct > f.taxa_contratual_pct ? 'text-red-600' : 'text-green-600'}`}>{pct(f.taxa_efetiva_pct)}</td>
+                        <td className={`py-2 text-right ${f.excesso_prejuizo > 0 ? 'text-red-600 font-bold' : ''}`}>{f.excesso_prejuizo > 0 ? fmt(f.excesso_prejuizo) : '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -156,36 +162,36 @@ export default function DashboardPage() {
               </Card>
             </div>
 
-            {/* Insights */}
             <Card title="Insights de IA">
               {!insight && !alerta && !analise ? (
-                <p className="text-gray-500">Clique em "Gerar Insights IA" para analisar os dados com inteligência artificial.</p>
+                <p className="text-gray-500">Clique em "Gerar Insights IA" para analisar os dados.</p>
               ) : (
                 <div className="space-y-4">
-                  {insight && (
-                    <div>
-                      <h3 className="font-semibold text-blue-800 mb-1">📋 Insight Diário</h3>
-                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 whitespace-pre-wrap text-sm">{insight}</div>
-                    </div>
-                  )}
-                  {alerta && (
-                    <div>
-                      <h3 className="font-semibold text-red-800 mb-1">🔴 Alertas</h3>
-                      <div className="p-4 bg-red-50 rounded-lg border border-red-200 whitespace-pre-wrap text-sm">{alerta}</div>
-                    </div>
-                  )}
-                  {analise && (
-                    <div>
-                      <h3 className="font-semibold text-green-800 mb-1">📊 Análise de Margem</h3>
-                      <div className="p-4 bg-green-50 rounded-lg border border-green-200 whitespace-pre-wrap text-sm">{analise}</div>
-                    </div>
-                  )}
+                  {insight && <div><h3 className="font-semibold text-blue-800 mb-1">📋 Insight Diário</h3><div className="p-4 bg-blue-50 rounded-lg border border-blue-200 whitespace-pre-wrap text-sm">{insight}</div></div>}
+                  {alerta && <div><h3 className="font-semibold text-red-800 mb-1">🔴 Alertas</h3><div className="p-4 bg-red-50 rounded-lg border border-red-200 whitespace-pre-wrap text-sm">{alerta}</div></div>}
+                  {analise && <div><h3 className="font-semibold text-green-800 mb-1">📊 Análise de Margem</h3><div className="p-4 bg-green-50 rounded-lg border border-green-200 whitespace-pre-wrap text-sm">{analise}</div></div>}
                 </div>
               )}
             </Card>
           </>
         )}
       </main>
+
+      <div className="max-w-7xl mx-auto px-6 pb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">☀️ Promoção do Dia</h2>
+            <button onClick={gerarPromocao} disabled={promoLoading} className="text-sm text-amber-600 hover:text-amber-700 font-medium">
+              {promoLoading ? 'Gerando...' : '🔄 Nova sugestão'}
+            </button>
+          </div>
+          {!promo ? (
+            <p className="text-gray-500">Clique em "⚡ Gerar Promoção do Dia" para gerar uma campanha baseada no clima e nas vendas.</p>
+          ) : (
+            <div className="whitespace-pre-wrap text-sm font-mono bg-amber-50 p-4 rounded-lg border border-amber-200">{promo}</div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
