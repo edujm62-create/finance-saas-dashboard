@@ -27,11 +27,13 @@ export default function DashboardPage() {
   const [difyLoading, setDifyLoading] = useState(false)
   const [promo, setPromo] = useState('')
   const [promoLoading, setPromoLoading] = useState(false)
+  const [analytics, setAnalytics] = useState<any>(null)
 
   useEffect(() => {
     fetch(`/api/conciliacao?merchant_id=${MERCHANT_ID}&data_ref=${DATA_REF}`)
       .then(r => r.json()).then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
+    fetch('/api/analytics').then(r => r.json()).then(setAnalytics).catch(() => {})
   }, [])
 
   async function gerarInsights() {
@@ -173,9 +175,98 @@ export default function DashboardPage() {
                 </div>
               )}
             </Card>
-          </>
+            </>
         )}
       </main>
+
+      {/* Analytics */}
+      {analytics && analytics.vendas_por_dia && analytics.vendas_por_dia.length > 0 && (
+        <div className="max-w-7xl mx-auto px-6 pb-4">
+          <Card title="📈 Análise Histórica">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-xs text-gray-500">🎟️ Ticket Médio</p>
+                <p className="text-xl font-bold">{fmt(analytics.ticket_medio)}</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-xs text-gray-500">📊 Categorias</p>
+                <p className="text-xl font-bold">{analytics.categorias?.length || 0}</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-xs text-gray-500">⏰ Pico</p>
+                <p className="text-xl font-bold">
+                  {analytics.horarios?.sort((a: any, b: any) => b.valor - a.valor)?.[0]?.hora || '-'}
+                </p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-xs text-gray-500">🏆 Melhor Dia</p>
+                <p className="text-xl font-bold">
+                  {analytics.vendas_por_dia?.sort((a: any, b: any) => b.total - a.total)?.[0]?.dia || '-'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="font-semibold text-gray-700 mb-2">Vendas por Dia da Semana</h3>
+                <div className="space-y-1">
+                  {analytics.vendas_por_dia?.map((d: any) => {
+                    const maxV = Math.max(...analytics.vendas_por_dia.map((x: any) => x.total))
+                    const pct = (d.total / maxV) * 100
+                    return (
+                      <div key={d.dia} className="flex items-center gap-2">
+                        <span className="w-20 text-xs text-gray-600">{d.dia}</span>
+                        <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }}></div>
+                        </div>
+                        <span className="text-xs font-medium w-20 text-right">{fmt(d.total)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-gray-700 mb-2">Vendas por Categoria</h3>
+                <div className="space-y-1">
+                  {analytics.categorias?.sort((a: any, b: any) => b.valor - a.valor).map((c: any) => {
+                    const maxV = Math.max(...analytics.categorias.map((x: any) => x.valor))
+                    const pct = (c.valor / maxV) * 100
+                    const cores = ['bg-blue-500', 'bg-green-500', 'bg-amber-500', 'bg-purple-500', 'bg-pink-500']
+                    return (
+                      <div key={c.nome} className="flex items-center gap-2">
+                        <span className="w-32 text-xs text-gray-600 truncate">{c.nome}</span>
+                        <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className={`h-full ${cores[0]} rounded-full`} style={{ width: `${pct}%` }}></div>
+                        </div>
+                        <span className="text-xs font-medium w-20 text-right">{fmt(c.valor)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {analytics.horarios && analytics.horarios.length > 0 && (
+              <div className="mt-6">
+                <h3 className="font-semibold text-gray-700 mb-2">Vendas por Horário</h3>
+                <div className="flex items-end gap-1 h-24">
+                  {analytics.horarios.sort((a: any, b: any) => parseInt(a.hora) - parseInt(b.hora)).map((h: any) => {
+                    const maxV = Math.max(...analytics.horarios.map((x: any) => x.valor))
+                    const pct = (h.valor / maxV) * 100
+                    return (
+                      <div key={h.hora} className="flex-1 flex flex-col items-center">
+                        <div className="w-full bg-blue-500 rounded-t" style={{ height: `${pct}%`, minHeight: pct > 0 ? '4px' : '0' }}></div>
+                        <span className="text-[10px] text-gray-500 mt-1">{h.hora}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-6 pb-6">
         <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-6">
